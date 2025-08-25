@@ -39,7 +39,7 @@ if st.button("📅 전체 계획표 생성"):
     elif not subjects:
         st.warning("과목과 소단원을 입력해주세요!")
     else:
-        weak_bonus = 1.5
+        weak_bonus = 1.3
         weights = {}
         total_units_weighted = 0
         for subj, data in subjects.items():
