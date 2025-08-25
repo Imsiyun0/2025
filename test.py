@@ -1,67 +1,59 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
-import math
 
-st.title("📘 스마트 스터디 플래너")
+st.title("📘 맞춤형 스터디 플래너")
 
-st.write("과목, 시험 날짜, 시험 범위, 하루 공부 가능 시간을 입력하면 맞춤형 공부 계획을 세워줍니다!")
-st.write("⚠️ 시험 범위는 **한 단원의 소단원까지 정확하게 입력**해주세요!")
+# 1. 기본 입력
+st.sidebar.header("기본 설정")
+total_time = st.sidebar.number_input("하루 총 공부 가능 시간 (시간 단위)", min_value=1, max_value=24, value=5)
+deficient_subject = st.sidebar.text_input("부족한 과목 (우선 배정)")
 
-# 입력
-subject = st.text_input("과목명")
-exam_date = st.date_input("시험 날짜")
-topics_input = st.text_area("시험 범위 (소단원 단위로 줄바꿈해서 입력)", height=150)
-daily_study_hours = st.number_input("하루 총 공부 가능 시간 (시간 단위)", min_value=1, max_value=24, value=3)
+# 2. 과목 입력
+st.header("과목별 시험 범위 입력")
+subjects = {}
+num_subjects = st.number_input("과목 수를 입력하세요", min_value=1, max_value=10, value=3)
 
-if st.button("공부 계획 세우기"):
-    if subject and exam_date and topics_input:
-        today = datetime.today().date()
-        days_left = (exam_date - today).days
+for i in range(num_subjects):
+    st.subheader(f"과목 {i+1}")
+    subject_name = st.text_input(f"과목 {i+1} 이름")
+    if subject_name:
+        st.info("📌 시험 범위를 소단원 단위로 정확히 입력해주세요.")
+        chapters = st.text_area(f"{subject_name} 시험 범위 (소단원 단위로 줄바꿈 입력)")
+        if chapters:
+            subjects[subject_name] = chapters.split("\n")
 
-        if days_left <= 0:
-            st.error("시험 날짜는 오늘 이후여야 합니다!")
-        else:
-            topics = topics_input.split("\n")
-            total_topics = len(topics)
+# 3. 시간 분배 로직
+if st.button("📅 공부 계획 세우기"):
+    if subjects:
+        # 총 소단원 개수
+        total_chapters = sum(len(chapters) for chapters in subjects.values())
 
-            # 총 공부 시간 (분 단위)
-            total_available_minutes = days_left * daily_study_hours * 60
+        # 시간 배분 단위 (기본)
+        base_minutes = (total_time * 60) / total_chapters
 
-            # 한 소단원당 배정 시간
-            minutes_per_topic = total_available_minutes / total_topics
+        plan = []
 
-            # 날짜별 계획표 생성
-            plan = []
-            current_day = today
-            topic_index = 0
+        for subject, chapters in subjects.items():
+            for chap in chapters:
+                minutes = base_minutes
+                # 부족한 과목이면 가중치 +50%
+                if subject == deficient_subject:
+                    minutes *= 1.5
+                hours = int(minutes // 60)
+                mins = int(minutes % 60)
+                plan.append([subject, chap, f"{hours}시간 {mins}분"])
 
-            for day in range(days_left):
-                day_plan = []
-                remaining_minutes = daily_study_hours * 60
+        df = pd.DataFrame(plan, columns=["과목", "소단원", "예상 공부 시간"])
 
-                while remaining_minutes > 0 and topic_index < total_topics:
-                    allocated = min(minutes_per_topic, remaining_minutes)
-                    hours = int(allocated // 60)
-                    mins = int(allocated % 60)
-                    day_plan.append((topics[topic_index], f"{hours}시간 {mins}분"))
-                    remaining_minutes -= allocated
-                    topic_index += 1
+        st.success("📖 오늘의 맞춤형 스터디 플래너")
+        st.dataframe(df, use_container_width=True)
 
-                total_day_hours = int((daily_study_hours * 60 - remaining_minutes) // 60)
-                total_day_mins = int((daily_study_hours * 60 - remaining_minutes) % 60)
-
-                plan.append({
-                    "날짜": current_day.strftime("%Y-%m-%d"),
-                    "공부 계획": "\n".join([f"- {t[0]} ({t[1]})" for t in day_plan]),
-                    "총 공부시간": f"{total_day_hours}시간 {total_day_mins}분"
-                })
-
-                current_day += timedelta(days=1)
-
-            df = pd.DataFrame(plan)
-            st.success(f"✅ {subject} 시험까지 {days_left}일 남았습니다. 맞춤형 계획표를 확인하세요!")
-            st.dataframe(df, use_container_width=True)
+        # 총합
+        total_minutes = sum([(total_time*60)/total_chapters * (1.5 if subject==deficient_subject else 1) 
+                             for subject, chapters in subjects.items() for _ in chapters])
+        total_hours = int(total_minutes // 60)
+        total_mins = int(total_minutes % 60)
+        st.subheader(f"🕒 총 공부 시간: {total_hours}시간 {total_mins}분")
 
     else:
-        st.warning("모든 입력값을 채워주세요!")
+        st.warning("과목과 시험 범위를 입력해주세요!")
