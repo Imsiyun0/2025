@@ -1,74 +1,67 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import math
 
-st.title("📘 AI 스터디 플래너")
-st.write("시험 과목, 시험 날짜, 시험 범위를 입력하면 **자동으로 공부 계획표**를 생성해줍니다.")
-st.write("👉 한 단원 안에 있는 **소단원까지 정확히 입력**해주세요!")
+st.title("📘 스마트 스터디 플래너")
 
-# 입력 폼
-with st.form("study_form"):
-    subjects = st.text_area("과목과 시험 범위를 입력하세요 (예: 수학 - 확률과 통계 단원, 영어 - Reading Unit 1~3)").split("\n")
-    exam_date = st.date_input("시험 날짜를 입력하세요")
-    daily_available_hours = st.number_input("하루 총 공부 가능한 시간(시간)", min_value=1, max_value=24, value=5)
-    weak_subjects = st.text_area("부족한 과목을 입력하세요 (예: 수학, 영어)").split("\n")
-    submitted = st.form_submit_button("계획표 생성")
+st.write("과목, 시험 날짜, 시험 범위, 하루 공부 가능 시간을 입력하면 맞춤형 공부 계획을 세워줍니다!")
+st.write("⚠️ 시험 범위는 **한 단원의 소단원까지 정확하게 입력**해주세요!")
 
-if submitted:
-    today = datetime.today().date()
-    days_left = (exam_date - today).days
+# 입력
+subject = st.text_input("과목명")
+exam_date = st.date_input("시험 날짜")
+topics_input = st.text_area("시험 범위 (소단원 단위로 줄바꿈해서 입력)", height=150)
+daily_study_hours = st.number_input("하루 총 공부 가능 시간 (시간 단위)", min_value=1, max_value=24, value=3)
 
-    if days_left <= 0:
-        st.error("시험 날짜는 오늘 이후로 설정해야 합니다!")
+if st.button("공부 계획 세우기"):
+    if subject and exam_date and topics_input:
+        today = datetime.today().date()
+        days_left = (exam_date - today).days
+
+        if days_left <= 0:
+            st.error("시험 날짜는 오늘 이후여야 합니다!")
+        else:
+            topics = topics_input.split("\n")
+            total_topics = len(topics)
+
+            # 총 공부 시간 (분 단위)
+            total_available_minutes = days_left * daily_study_hours * 60
+
+            # 한 소단원당 배정 시간
+            minutes_per_topic = total_available_minutes / total_topics
+
+            # 날짜별 계획표 생성
+            plan = []
+            current_day = today
+            topic_index = 0
+
+            for day in range(days_left):
+                day_plan = []
+                remaining_minutes = daily_study_hours * 60
+
+                while remaining_minutes > 0 and topic_index < total_topics:
+                    allocated = min(minutes_per_topic, remaining_minutes)
+                    hours = int(allocated // 60)
+                    mins = int(allocated % 60)
+                    day_plan.append((topics[topic_index], f"{hours}시간 {mins}분"))
+                    remaining_minutes -= allocated
+                    topic_index += 1
+
+                total_day_hours = int((daily_study_hours * 60 - remaining_minutes) // 60)
+                total_day_mins = int((daily_study_hours * 60 - remaining_minutes) % 60)
+
+                plan.append({
+                    "날짜": current_day.strftime("%Y-%m-%d"),
+                    "공부 계획": "\n".join([f"- {t[0]} ({t[1]})" for t in day_plan]),
+                    "총 공부시간": f"{total_day_hours}시간 {total_day_mins}분"
+                })
+
+                current_day += timedelta(days=1)
+
+            df = pd.DataFrame(plan)
+            st.success(f"✅ {subject} 시험까지 {days_left}일 남았습니다. 맞춤형 계획표를 확인하세요!")
+            st.dataframe(df, use_container_width=True)
+
     else:
-        st.success(f"시험까지 남은 기간: **{days_left}일**")
-
-        # 시험 범위를 세부 단원으로 분리
-        study_plan = []
-        subject_units = {}
-
-        for subj in subjects:
-            if "-" in subj:
-                subject, units = subj.split("-", 1)
-                units = [u.strip() for u in units.split(",")]
-                subject_units[subject.strip()] = units
-
-        # 부족 과목 가중치 반영
-        weights = {}
-        for subj in subject_units.keys():
-            if subj in weak_subjects:
-                weights[subj] = 2  # 부족한 과목은 가중치 2배
-            else:
-                weights[subj] = 1
-
-        total_units = sum(len(units) * weights[subj] for subj, units in subject_units.items())
-
-        # 단위 시간 계산
-        total_minutes_per_day = daily_available_hours * 60
-        minutes_per_unit = (days_left * total_minutes_per_day) / total_units
-
-        current_day = today
-
-        for day in range(days_left):
-            day_plan = []
-            total_day_minutes = 0
-            for subj, units in subject_units.items():
-                for unit in units:
-                    # 부족 과목은 단원 당 시간을 늘림
-                    unit_minutes = minutes_per_unit * weights[subj]
-                    total_day_minutes += unit_minutes
-                    hours = int(unit_minutes // 60)
-                    mins = int(unit_minutes % 60)
-                    day_plan.append(f"{subj} - {unit} ({hours}시간 {mins}분)")
-            study_plan.append({
-                "날짜": current_day.strftime("%m/%d"),
-                "계획": "\n".join(day_plan),
-                "총 공부 시간": f"{int(total_day_minutes//60)}시간 {int(total_day_minutes%60)}분"
-            })
-            current_day += timedelta(days=1)
-
-        # DataFrame 생성
-        df = pd.DataFrame(study_plan)
-
-        st.subheader("📅 스터디 플래너")
-        st.dataframe(df, use_container_width=True)
+        st.warning("모든 입력값을 채워주세요!")
