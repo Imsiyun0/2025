@@ -23,6 +23,17 @@ for subject in subject_list:
 # 2. 하루 공부 시간 입력
 study_hours = st.number_input("하루 총 공부 가능 시간 (시간 단위)", min_value=1, max_value=24, value=3)
 
+# ⏰ 소수점 → 시간+분 변환 함수
+def convert_hours_to_hm(hours_float):
+    h = int(hours_float)  # 정수 부분 = 시간
+    m = int(round((hours_float - h) * 60))  # 소수점 부분 = 분
+    if h > 0 and m > 0:
+        return f"{h}시간 {m}분"
+    elif h > 0:
+        return f"{h}시간"
+    else:
+        return f"{m}분"
+
 if st.button("📊 스터디 플래너 생성"):
     today = datetime.today().date()
     remaining_days = [(exam - today).days for exam in exam_dates]
@@ -38,7 +49,7 @@ if st.button("📊 스터디 플래너 생성"):
             num_units = len(units)
             if num_units == 0:
                 continue
-            daily_hours_per_unit = round(study_hours / num_units, 2)
+            daily_hours_per_unit = study_hours / num_units  # 소수점 그대로 계산
 
             for d in range(days_left):
                 date = today + timedelta(days=d)
@@ -47,7 +58,8 @@ if st.button("📊 스터디 플래너 생성"):
                     "날짜": date,
                     "과목": subject,
                     "단원/소단원": unit,
-                    "공부 시간 (시간)": daily_hours_per_unit
+                    "공부 시간(원시)": daily_hours_per_unit,
+                    "공부 시간": convert_hours_to_hm(daily_hours_per_unit)
                 })
 
         df = pd.DataFrame(plan)
@@ -57,6 +69,10 @@ if st.button("📊 스터디 플래너 생성"):
         # 날짜별 카드 형식 출력
         grouped = df.groupby("날짜")
         for date, group in grouped:
+            # 하루 총 공부시간(소수점 합 → h, m 변환)
+            total_hours = group["공부 시간(원시)"].sum()
+            total_time_str = convert_hours_to_hm(total_hours)
+
             with st.container():
                 st.markdown(
                     f"""
@@ -68,12 +84,13 @@ if st.button("📊 스터디 플래너 생성"):
                         box-shadow:2px 2px 8px rgba(0,0,0,0.1);
                     ">
                         <h3 style="margin:0; color:#2c3e50;">📅 {date}</h3>
+                        <p style="margin:5px 0; font-weight:bold; color:#d35400;">총 공부시간: ⏰ {total_time_str}</p>
                         <ul style="font-size:16px; line-height:1.6; color:#34495e;">
                     """, unsafe_allow_html=True
                 )
                 for _, row in group.iterrows():
                     st.markdown(
-                        f"<li>{row['과목']} | {row['단원/소단원']} | ⏰ {row['공부 시간 (시간)']} 시간</li>",
+                        f"<li>{row['과목']} | {row['단원/소단원']} | ⏰ {row['공부 시간']}</li>",
                         unsafe_allow_html=True
                     )
                 st.markdown("</ul></div>", unsafe_allow_html=True)
