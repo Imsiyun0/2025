@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
-st.title("📘 시험 대비 스터디 플래너 (깔끔한 카드형)")
+st.title("📘 시험 대비 스터디 플래너")
 
 # 입력
 exam_date = st.date_input("시험 날짜 선택")
